@@ -89,18 +89,24 @@ if ($_REQUEST['action']=="validate") $_SESSION['company'] = $_POST['company'];
 if (isset($_SESSION['company']) && $_SESSION['company'] != '' && file_exists(DIR_FS_MY_FILES . $_SESSION['company'] . '/config.php')) {
 	define('DB_DATABASE', $_SESSION['company']);
 	require_once(DIR_FS_MY_FILES . $_SESSION['company'] . '/config.php');
-	define('DB_SERVER_HOST',DB_SERVER); // for old PhreeBooks installs
-  	// Load queryFactory db classes
-  	require_once(DIR_FS_INCLUDES . 'db/' . DB_TYPE . '/query_factory.php');
-  	$db = new queryFactory();
-  	$db->connect(DB_SERVER_HOST, DB_SERVER_USERNAME, DB_SERVER_PASSWORD, DB_DATABASE);
-  	// set application wide parameters for phreebooks module
-  	$result = $db->Execute_return_error("select configuration_key, configuration_value from " . DB_PREFIX . "configuration");
-  	if ($db->error_number != '' || $result->RecordCount() == 0) trigger_error(LOAD_CONFIG_ERROR, E_USER_ERROR);
-  	while (!$result->EOF) {
-		define($result->fields['configuration_key'], $result->fields['configuration_value']);
-		$result->MoveNext();
-  	}
+  	define('DB_SERVER_HOST',DB_SERVER); // for old PhreeBooks installs
+	//registry::storeCoreObjects();
+	// Load queryFactory db classes
+	$dsn = DB_TYPE.":dbname=".$_SESSION['company'].";host=".DB_SERVER_HOST;
+	try {
+		$db = new \core\db\extended_PDO($dsn, DB_SERVER_USERNAME, DB_SERVER_PASSWORD,array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION));
+	} catch (\PDOException $e) {
+		trigger_error('database connection failed: ' . $e->getMessage() , E_USER_ERROR);
+	}
+	try{
+	 	$temp = $db->prepare("select configuration_key, configuration_value from " . DB_PREFIX . "configuration");
+	 	$temp->execute();
+    	foreach($temp->fetch(PDO::FETCH_ASSOC) as $row){
+	  		define($row['configuration_key'],$row['configuration_value']);
+	  	}
+    }catch (\PDOException $e) {
+    	trigger_error(LOAD_CONFIG_ERROR . $e->getMessage(), E_USER_ERROR);
+    }
   	// search the list modules and load configuration files and language files
   	gen_pull_language('phreedom', 'menu');
   	gen_pull_language('phreebooks', 'menu');
